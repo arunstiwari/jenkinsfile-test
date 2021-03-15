@@ -1,0 +1,50 @@
+pipeline{
+    agent none
+    stages {
+       stage('Commit Stage'){
+           steps {
+               echo 'Commit Pipeline Begins'
+           }
+       }
+       stage('Unit Test'){
+           steps {
+                  echo 'Executing Unit Tests'
+          }
+          post {
+            success {
+                echo 'Unit Test ran successfully'
+            }
+          }
+       }
+    stage('Static Code Analysis'){
+          steps {
+             echo 'Executing Static Code Analysis'
+             sh './build.sh --release'
+         }
+         post {
+             success {
+                 echo 'Static Code analysis completed successfully'
+             }
+        }
+      }
+      stage('Packaging'){
+        steps {
+           echo 'Packaging it as a jar'
+           sh '''
+            mvn clean package
+           '''
+       }
+       post {
+           success {
+               echo 'Packaging as jar was done successfully'
+           }
+         }
+      }
+
+    }
+    post {
+        always {
+            echo 'Commit Stage Pipeline ran successfully'
+        }
+      }
+}
