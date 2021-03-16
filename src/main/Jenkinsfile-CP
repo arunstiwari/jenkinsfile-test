@@ -1,0 +1,523 @@
+pipeline{
+    agent any
+    parameters {
+            string(name: 'CONTRACT_MODELER_BRANCH', defaultValue: 'v1045')
+            string(name: 'PLATFORM_BRANCH', defaultValue: 'v1045')
+            string(name: 'CONTRACT_MODELER_SVN_REPOSITORY', defaultValue: 'https://smd-gug-svn1.spectramd.com:81/svn/Focus/branches/cicdproject/ContractModeler/')
+            string(name: 'PLATFORM_SVN_REPOSITORY', defaultValue: 'https://smd-gug-svn1.spectramd.com:81/svn/Focus/branches/cicdproject/Platform/')
+            string(name: 'THIRDPARTY_PACKAGES_PATH', defaultValue: 'D:/SpectraMD/Jenkins/.jenkins/workspace/thirdpartypackages/thirdpartypackages')
+            string(name: 'WAR_LIBS_CLASSPATH', defaultValue: 'D:/SpectraMD/Tekmentors/MissingJARs/org-netbeans-modules-java-j2seproject-copylibstask.jar')
+        }
+
+        /* options {
+            copyArtifactPermission('ContractModeler/CommitPipeline');
+        } */
+    stages {
+      stage('Initial Setup'){
+        steps {
+             dir("${env.WORKSPACE}"){
+               fileOperations([folderCreateOperation(
+                 "./ContractModeler/${params.CONTRACT_MODELER_BRANCH}"
+               )])
+
+               fileOperations([folderCreateOperation(
+                    "./Platform/${params.PLATFORM_BRANCH}"
+                )])
+               fileOperations([folderDeleteOperation(
+                   "./Platform-I"
+               )])
+            fileOperations([folderDeleteOperation(
+                      "../infra"
+              )])
+              fileOperations([folderDeleteOperation(
+                 "./ContractModeler-I"
+             )])
+             fileOperations([folderCreateOperation(
+                   '../infra'
+             )])
+             fileOperations([folderCreateOperation(
+                                '../deployapp/artefacts'
+              )])
+             fileOperations([folderCreateOperation(
+                  'ContractModeler-I'
+            )])
+
+            fileOperations([folderCreateOperation(
+                 'Platform-I'
+             )])
+           }
+           dir("${env.WORKSPACE}/Platform-I"){
+               fileOperations([folderCreateOperation(
+                 'thirdpartypackages'
+               )])
+           }
+        }
+      }
+      stage('Checkout Code') {
+      parallel {
+          stage('Checkout Contract Modeler Code') {
+            steps {
+              checkout([$class: 'SubversionSCM',
+                  additionalCredentials: [],
+                  excludedCommitMessages: '',
+                  excludedRegions: '',
+                  excludedRevprop: '',
+                  excludedUsers: 'buildbot',
+                  filterChangelog: false,
+                  ignoreDirPropChanges: false,
+                  includedRegions: '',
+                  locations: [[credentialsId: '8e1fe007-23c5-4abd-958f-3414dee8d628',
+                      depthOption: 'infinity',
+                      ignoreExternalsOption: true,
+                      local: "./ContractModeler/${params.CONTRACT_MODELER_BRANCH}",
+                      remote: "${params.CONTRACT_MODELER_SVN_REPOSITORY}/${params.CONTRACT_MODELER_BRANCH}"]],
+                  workspaceUpdater: [$class: 'UpdateUpdater']])
+            }
+          }
+             stage('Checkout Platform Code') {
+              steps {
+                checkout([$class: 'SubversionSCM',
+                    additionalCredentials: [],
+                    excludedCommitMessages: '',
+                    excludedRegions: '',
+                    excludedRevprop: '',
+                    excludedUsers: 'buildbot',
+                    filterChangelog: false,
+                    ignoreDirPropChanges: false,
+                    includedRegions: '',
+                    locations: [[credentialsId: '8e1fe007-23c5-4abd-958f-3414dee8d628',
+                        depthOption: 'infinity',
+                        ignoreExternalsOption: true,
+                        local: "./Platform/${params.PLATFORM_BRANCH}",
+                        remote: "${params.PLATFORM_SVN_REPOSITORY}/${params.PLATFORM_BRANCH}"]],
+                    workspaceUpdater: [$class: 'UpdateUpdater']])
+              }
+            }
+        }
+       }
+
+      stage('Copy the Service, Platform and thirdparty packages folders to intermediate Platform'){
+            steps {
+                fileOperations([folderCopyOperation(
+                  sourceFolderPath: "${env.WORKSPACE}/Platform",
+                  destinationFolderPath: "${env.WORKSPACE}/Platform-I"
+                )])
+               fileOperations([folderCopyOperation(
+                 sourceFolderPath: "${env.WORKSPACE}/ContractModeler/${params.CONTRACT_MODELER_BRANCH}",
+                 destinationFolderPath: "${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}"
+               )])
+              fileOperations([folderCopyOperation(
+                sourceFolderPath: "${params.THIRDPARTY_PACKAGES_PATH}",
+                destinationFolderPath: "./Platform-I/thirdpartypackages"
+              )])
+            }
+        }
+
+      stage('Unit Test'){
+         stages {
+
+            stage('ContractService Unit Test'){
+                 steps {
+                   echo "ContractService Unit Test Started..."
+                        withAnt {
+                                dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/ContractService"){
+                                  bat "ant -Dignore.failing.tests=true test"
+                              }
+                        }
+                 }
+                  post {
+                         always{
+                            dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/ContractService"){
+                             archiveArtifacts artifacts: "build/test/results/**", fingerprint: false
+                             junit testResults: "build/test/results/junitreports/*.xml"
+                           }
+                         }
+                         success {
+                             echo 'Unit Test for ContractService executed successfully'
+                         }
+                   }
+             }
+
+
+
+            stage('FinancialBenchmarkService Unit Test'){
+               steps{
+                   echo "FinancialBenchmarkService Unit Test Started..."
+                    withAnt {
+                            dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/FinancialBenchmarkService"){
+                              bat "ant -Dignore.failing.tests=true test"
+                          }
+                    }
+               }
+                post {
+                       always{
+                       dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/FinancialBenchmarkService"){
+                               /* archiveArtifacts artifacts: "build/test/results/**", allowEmptyArchive: true, fingerprint: true
+                               junit allowEmptyResults: true testResults: "build/test/results/junitreports/*.xml" */
+                               echo 'Fix this issue'
+                           }
+                        }
+                       success {
+                           echo 'Unit Test for FinancialBenchmarkService executed successfully'
+                       }
+                }
+            }
+
+         }
+
+         post {
+
+           failure {
+               echo 'Sending the failure notification to DL'
+           }
+           success {
+               echo 'Unit Tests ran successfully'
+           }
+         }
+      }
+
+       stage('Packaging modules'){
+            stages {
+                 stage('Packaging ContractDomainBeans'){
+                       steps {
+                          echo 'Packaging it as a jar'
+                          withAnt {
+                              dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/ContractDomainBeans"){
+                                bat "ant jar"
+                            }
+                          }
+                      }
+                      post {
+                          always {
+                              echo "Archiving ContractDomainBeans jar"
+                              dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/ContractDomainBeans"){
+                                 archiveArtifacts artifacts: "dist/*.jar",allowEmptyArchive: true, fingerprint: true
+                             }
+                          }
+                        }
+                     }
+                stage('Packaging ContractService'){
+                    steps {
+                       echo 'Packaging it as a jar'
+                       withAnt {
+                           dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/ContractService"){
+                             bat "ant jar"
+                         }
+                       }
+                   }
+                   post {
+                       always {
+                        echo "Archiving ContractService jar"
+                           dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/ContractService"){
+                              archiveArtifacts artifacts: "dist/*.jar", allowEmptyArchive: true, fingerprint: true
+                          }
+                       }
+                 }
+              }
+              stage('Packaging FinancialBenchmarkBeans'){
+                      steps {
+                         echo 'Packaging it as a jar'
+                         withAnt {
+                             dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/FinancialBenchmarkBeans"){
+                               bat "ant jar"
+                           }
+                         }
+                     }
+                     post {
+                         always {
+                            dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/FinancialBenchmarkBeans"){
+                               archiveArtifacts artifacts: "dist/*.jar", allowEmptyArchive: true, fingerprint: true
+                           }
+                         }
+                   }
+                }
+               stage('Packaging FinancialBenchmarkService'){
+                     steps {
+                        withAnt {
+                            dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/FinancialBenchmarkService"){
+                              bat "ant jar"
+                          }
+                        }
+                    }
+                    post {
+                        always {
+                         dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/FinancialBenchmarkService"){
+                               archiveArtifacts artifacts: "dist/*.jar",allowEmptyArchive: true, fingerprint: true
+                           }
+
+                        }
+                      }
+               }
+            }
+       }
+       stage('Spotbugs analysis for ContractModule'){
+                       parallel {
+                            stage('Publish Spotbugs for ContractService'){
+                               steps {
+                                   echo 'Executing Spotbugs for ContractService'
+                                   dir("D:/SpectraMD"){
+                                       fileOperations([fileCopyOperation(
+                                            includes: '*spotbugs.xml',
+                                            excludes: '',
+                                            targetLocation: "${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/ContractService",
+                                            flattenFiles: false,
+                                            renameFiles: false
+                                      )])
+                                  }
+                                  dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/ContractService"){
+                                      bat "ant -buildfile spotbugs.xml -Dspotbugs.home=D:/SpectraMD/spotbugs-4.2.0/spotbugs-4.2.0 -Dmodule_name=ContractService spotbugs"
+                                  }
+                               }
+                               post {
+                                       always {
+                                        dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/ContractService"){
+                                              archiveArtifacts artifacts: "spotbugs-ContractService.xml",allowEmptyArchive: true, fingerprint: true
+                                              recordIssues(tools: [spotBugs(id: 'cm-cs', pattern: 'spotbugs-*.xml', reportEncoding: 'UTF-8', useRankAsPriority: true)])
+                                          }
+                                       }
+                                     }
+                           }
+                            stage('Publish Spotbugs for ContractDomainBeans'){
+                               steps {
+                                   echo 'Executing Spotbugs for ContractDomainBeans'
+                                   dir("D:/SpectraMD"){
+                                       fileOperations([fileCopyOperation(
+                                            includes: '*spotbugs.xml',
+                                            excludes: '',
+                                            targetLocation: "${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/ContractDomainBeans",
+                                            flattenFiles: false,
+                                            renameFiles: false
+                                      )])
+                                  }
+                                  dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/ContractDomainBeans"){
+                                      bat "ant -buildfile spotbugs.xml -Dspotbugs.home=D:/SpectraMD/spotbugs-4.2.0/spotbugs-4.2.0 -Dmodule_name=ContractDomainBeans spotbugs"
+                                  }
+                               }
+                               post {
+                                   always {
+                                    dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/ContractDomainBeans"){
+                                          archiveArtifacts artifacts: "spotbugs-ContractDomainBeans.xml", allowEmptyArchive: true, fingerprint: true
+                                          recordIssues(tools: [spotBugs(id: 'cm-cdm', pattern: 'spotbugs-*.xml', reportEncoding: 'UTF-8', useRankAsPriority: true)])
+                                      }
+                                   }
+                                 }
+                           }
+
+                           stage('Publish Spotbugs for FinancialBenchmarkBeans'){
+                               steps {
+                                   echo 'Executing Spotbugs for FinancialBenchmarkBeans'
+                                   dir("D:/SpectraMD"){
+                                       fileOperations([fileCopyOperation(
+                                            includes: '*spotbugs.xml',
+                                            excludes: '',
+                                            targetLocation: "${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/FinancialBenchmarkBeans",
+                                            flattenFiles: false,
+                                            renameFiles: false
+                                      )])
+                                  }
+                                  dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/FinancialBenchmarkBeans"){
+                                      bat "ant -buildfile spotbugs.xml -Dspotbugs.home=D:/SpectraMD/spotbugs-4.2.0/spotbugs-4.2.0 -Dmodule_name=FinancialBenchmarkBeans spotbugs"
+                                  }
+                               }
+                               post {
+                                   always {
+                                    dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/FinancialBenchmarkBeans"){
+                                          archiveArtifacts artifacts: "spotbugs-FinancialBenchmarkBeans.xml",allowEmptyArchive: true, fingerprint: true
+                                          recordIssues(tools: [spotBugs(id: 'cm-fbm', pattern: 'spotbugs-*.xml', reportEncoding: 'UTF-8', useRankAsPriority: true)])
+                                      }
+                                   }
+                                 }
+                           }
+                           stage('Publish Spotbugs for FinancialBenchmarkService'){
+                               steps {
+                                   echo 'Executing Spotbugs for FinancialBenchmarkService'
+                                   dir("D:/SpectraMD"){
+                                       fileOperations([fileCopyOperation(
+                                            includes: '*spotbugs.xml',
+                                            excludes: '',
+                                            targetLocation: "${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/FinancialBenchmarkService",
+                                            flattenFiles: false,
+                                            renameFiles: false
+                                      )])
+                                  }
+                                  dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/FinancialBenchmarkService"){
+                                      bat "ant -buildfile spotbugs.xml -Dspotbugs.home=D:/SpectraMD/spotbugs-4.2.0/spotbugs-4.2.0 -Dmodule_name=FinancialBenchmarkService spotbugs"
+                                  }
+                               }
+                               post {
+                                   always {
+                                    dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/FinancialBenchmarkService"){
+                                          archiveArtifacts artifacts: "spotbugs-FinancialBenchmarkService.xml",allowEmptyArchive: true, fingerprint: true
+                                          recordIssues(tools: [spotBugs(id: 'cm-fbs', pattern: 'spotbugs-*.xml', reportEncoding: 'UTF-8', useRankAsPriority: true)])
+                                      }
+                                   }
+                                 }
+                           }
+                       }
+                   }
+       stage('Sonar Analysis'){
+          parallel {
+              stage('Static Code Analysis ContractDomainBeans'){
+                 steps {
+                            echo 'Executing Static Code Analysis'
+                            script {
+                                   def scannerHome = tool 'sonarqube-scanner';
+                                    withSonarQubeEnv("sonarqube-container") {
+                                        dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/ContractDomainBeans"){
+                                           bat "${scannerHome}/sonar-scanner -Dsonar.projectKey=SMD_CM_DB  -Dsonar.projectName=ContractDomainBeans -Dsonar.language=java -Dsonar.java.source=6 -Dsonar.java.binaries=./build/classes -Dsonar.exclusions=nbproject/*.*,test/* -Dsonar.sources=.  -Dsonar.host.url=http://localhost:9000 -Dsonar.login=48525f56254e8f02dd33c3e4e6f099c9431645ac -Dsonar.java.spotbugs.reportPaths=spotbugs-ContractDomainBeans.xml"
+                                         }
+                                   }
+                               }
+                        }
+              }
+              stage('Static Code Analysis ContractService'){
+                   steps {
+                              echo 'Executing Static Code Analysis'
+                              script {
+                                     def scannerHome = tool 'sonarqube-scanner';
+                                      withSonarQubeEnv("sonarqube-container") {
+                                          dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/ContractService"){
+                                             bat "${scannerHome}/sonar-scanner -Dsonar.projectKey=SMD_CM_SVC -Dsonar.projectName=ContractService  -Dsonar.language=java -Dsonar.java.source=6 -Dsonar.java.binaries=./build/classes -Dsonar.exclusions=nbproject/*.*,test/**/*.* -Dsonar.sources=.  -Dsonar.host.url=http://localhost:9000 -Dsonar.login=48525f56254e8f02dd33c3e4e6f099c9431645ac -Dsonar.junit.reportPaths=build/test/results/junitreports -Dsonar.java.spotbugs.reportPaths=spotbugs-ContractService.xml"
+                                           }
+                                     }
+                                 }
+                          }
+              }
+              stage('Static Code Analysis FinancialBenchmarkBeans'){
+                 steps {
+                        echo 'Executing Static Code Analysis'
+                        script {
+                               def scannerHome = tool 'sonarqube-scanner';
+                                withSonarQubeEnv("sonarqube-container") {
+                                    dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/FinancialBenchmarkBeans"){
+                                       bat "${scannerHome}/sonar-scanner -Dsonar.projectKey=SMD_CM_FBM -Dsonar.projectName=FinancialBenchmarkBeans  -Dsonar.language=java -Dsonar.java.source=6 -Dsonar.java.binaries=./build/classes -Dsonar.exclusions=nbproject/*.*,test/* -Dsonar.sources=.  -Dsonar.host.url=http://localhost:9000 -Dsonar.login=48525f56254e8f02dd33c3e4e6f099c9431645ac -Dsonar.java.spotbugs.reportPaths=spotbugs-FinancialBenchmarkBeans.xml"
+                                     }
+                               }
+                           }
+                    }
+              }
+              stage('Static Code Analysis FinancialBenchmarService'){
+                   steps {
+                          echo 'Executing Static Code Analysis'
+                          script {
+                                 def scannerHome = tool 'sonarqube-scanner';
+                                  withSonarQubeEnv("sonarqube-container") {
+                                      dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/Service/FinancialBenchmarkService"){
+                                         bat "${scannerHome}/sonar-scanner -Dsonar.projectKey=SMD_CM_FBM_SVC -Dsonar.projectName=FinancialBenchmarkService  -Dsonar.language=java -Dsonar.java.source=6 -Dsonar.java.binaries=./build/classes -Dsonar.exclusions=nbproject/*.*,test/**/*.* -Dsonar.sources=.  -Dsonar.host.url=http://localhost:9000 -Dsonar.junit.reportPaths=build/test/results/junitreports -Dsonar.login=48525f56254e8f02dd33c3e4e6f099c9431645ac -Dsonar.java.spotbugs.reportPaths=spotbugs-FinancialBenchmarkService.xml"
+                                       }
+                                 }
+                             }
+                      }
+            }
+          }
+
+           post {
+               success {
+                   echo 'Static Code analysis completed successfully'
+               }
+          }
+        }
+        stage('Building React Code'){
+            steps {
+              dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/portal/ContractModelerReactCode"){
+                echo 'Executing the ContractModelerReactCode build'
+                bat "npm install"
+                echo 'Dependencies installed successfully'
+                bat "npm run build"
+                echo 'Successfully build the project'
+              }
+            }
+        }
+        stage('Sonar Analysis of React Code'){
+           steps {
+                     echo 'Executing Static Code Analysis'
+                     script {
+                            def scannerHome = tool 'sonarqube-scanner';
+                             withSonarQubeEnv("sonarqube-container") {
+                                 dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/portal/ContractModelerReactCode"){
+                                    bat "${scannerHome}/sonar-scanner -Dsonar.projectKey=SMD_CM_PORTAL -Dsonar.projectName=ContractModelerReactCode  -Dsonar.language=js   -Dsonar.sources=./src  -Dsonar.host.url=http://localhost:9000 -Dsonar.login=48525f56254e8f02dd33c3e4e6f099c9431645ac"
+                                  }
+                            }
+                        }
+             }
+             post {
+                    success {
+                        echo 'Sonar Static Analysis of ContractModeler react code is successfull'
+                    }
+                  }
+        }
+
+           /* stage('Dependency Checker'){
+                steps {
+                    script{
+                        try{
+                            echo 'Executing Dependency Checker for React code'
+                            dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/portal/ContractModelerReactCode"){
+                                bat "D:/Users/arun.tiwari/AppData/Roaming/npm/npm-check"
+                            }
+                        } catch(err) {
+                            echo err
+                        }5606
+                    }
+                }
+            }*/
+
+            stage('Dependency Check for ContractModule'){
+                steps {
+                    dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/ContractService"){
+                       bat "ant -buildfile spotbugs.xml dependency-check"
+                   }
+                }
+                post {
+                    always {
+                     dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/service/ContractService"){
+                           archiveArtifacts artifacts: "reports/*.*", allowEmptyArchive: true, fingerprint: true
+                       }
+                    }
+                  }
+            }
+            stage('Generate ContractModeler WAR'){
+                steps {
+                        dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/portal/ContractModeler"){
+                           bat "ant -Dlibs.CopyLibs.classpath=${params.WAR_LIBS_CLASSPATH} dist"
+                       }
+                }
+                post {
+                    always {
+                     dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/portal/ContractModeler"){
+                           archiveArtifacts artifacts: "dist/ContractModele*.war",allowEmptyArchive: true, fingerprint: true
+                       }
+                    }
+              }
+            }
+            stage('Copy Artifacts'){
+                steps {
+                  echo "${env.WORKSPACE}/../infra"
+                    dir("${env.WORKSPACE}/Platform-I/${params.PLATFORM_BRANCH}/portal/ContractModeler"){
+                        copyArtifacts filter: 'dist/ContractModeler.war', fingerprintArtifacts: true, projectName: 'ContractModeler/CommitPipeline', selector: lastCompleted(), target: "${env.WORKSPACE}/../deployapp/artefacts"
+                    }
+                }
+            }
+            stage('Triggering Acceptance Pipeline'){
+                steps {
+                    build job: "ContractModeler/AcceptancePipeline", wait: false
+                }
+            }
+
+    }
+    post {
+        always {
+            echo 'Commit Stage Pipeline ran successfully'
+            /*mail to: 'arunstiwari@gmail.com',
+                              subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
+                              body: "Something is wrong with ${env.BUILD_URL}" */
+        }
+
+        /*failure {
+              // notify users when the Pipeline fails
+              mail to: 'arunstiwari@gmail.com',
+                  subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
+                  body: "Something is wrong with ${env.BUILD_URL}"
+            }*/
+      }
+}

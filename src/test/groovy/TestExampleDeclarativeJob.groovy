@@ -3,7 +3,8 @@ package com.tekmentors.jenkins;
 import com.lesfurets.jenkins.unit.declarative.DeclarativePipelineTest
 import org.junit.Before;
 import org.junit.Test
-
+import static com.lesfurets.jenkins.unit.MethodCall.callArgsToString
+import static org.junit.Assert.*
 public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
 
     @Before
@@ -13,6 +14,20 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
         helper.addShMock('./processTestResults.sh --platform debian', 'Executed with SUCCESS', 0)
         binding.setVariable("BRANCH","Dev")
     }
+
+    @Test
+    void should_execute_checkout_successfully() throws Exception {
+        helper.registerAllowedMethod("sh", [String.class], {cmd->
+            if (cmd.contains("if([ ${BRANCH} = \"Dev\" -o ${BRANCH} = \"Fast-Track\"])")) {
+                binding.getVariable('currentBuild').result = 'SUCCESS'
+            }
+        })
+        def script = runScript("Jenkinsfile")
+        assertEquals("Branch Name is Dev","Dev",binding.getVariable("BRANCH"))
+        assertJobStatusSuccess()
+        printCallStack()
+    }
+
     @Test
     void should_execute_static_analysis_successfully() throws Exception {
         def script = runScript("Jenkinsfile")
@@ -20,10 +35,28 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
         printCallStack()
     }
     @Test
-    void should_faile_execute_static_analysis_due_to_buildsh_failure() throws Exception {
+    void should_fail_execute_static_analysis_due_to_buildsh_failure() throws Exception {
         helper.addShMock('./build.sh --release', '', 1)
         def script = runScript("Jenkinsfile")
+        assertTrue(helper.callStack.findAll { call ->
+            call.methodName == "sh"
+        }.any { call ->
+            callArgsToString(call).contains("mvn clean package")
+        })
         assertJobStatusUnstable()
+        printCallStack()
+    }
+
+    @Test
+    void should_fail_execute_static_analysis_due_to_processtestresult_failure() throws Exception {
+        helper.addShMock('./processTestResults.sh --platform debian', 'Executed with FAILURE', 0)
+        def script = runScript("Jenkinsfile")
+        assertFalse(helper.callStack.findAll { call ->
+            call.methodName == "sh"
+        }.any { call ->
+            callArgsToString(call).contains("mvn clean package")
+        })
+        assertJobStatusFailure()
         printCallStack()
     }
 
@@ -50,7 +83,11 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
         })
 
         def script = runScript("Jenkinsfile")
-
+        assertTrue(helper.callStack.findAll { call ->
+            call.methodName == "sh"
+        }.any { call ->
+            callArgsToString(call).contains("mvn clean package")
+        })
         assertJobStatusFailure()
         printCallStack()
     }
