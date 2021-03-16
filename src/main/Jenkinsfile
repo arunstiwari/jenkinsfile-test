@@ -1,14 +1,28 @@
 pipeline{
     agent none
+    parameters{
+            string(name: 'IS_FILE', defaultValue: 'v1045')
+            }
     stages {
-       stage('Commit Stage'){
+       stage('Checkout'){
            steps {
-               echo 'Commit Pipeline Begins'
+               withCredentials([usernamePassword(credentialsId: "WEB_USER", usernameVariable: "bitbucket_user", passwordVariable: "bitbucket_paas")]){
+                sh '''
+                    fBranchName = Fast-Track
+                    if([ ${BRANCH} = "Dev" -o ${BRANCH} = "Fast-Track"])
+                        then
+                            echo "Branch Name ${BRANCH}"
+                    else
+                        echo "Not pulling from branch"
+                    fi
+                '''
+               }
+
            }
        }
        stage('Unit Test'){
            steps {
-                  echo 'Executing Unit Tests'
+                  echo 'Executing Unit Tests ${params.IS_FILE}'
           }
           post {
             success {
@@ -19,11 +33,28 @@ pipeline{
     stage('Static Code Analysis'){
           steps {
              echo 'Executing Static Code Analysis'
-             sh './build.sh --release'
+             int status = sh(returnStatus: true, script: './build.sh --release')
+             if(status > 0) {
+                currentBuild.result = 'UNSTABLE'
+             }else {
+                def result = sh(returnStdout: true, script: './processTestResults.sh --platform debian')
+                 echo "result: ${result}"
+                 if (!result.endsWith('SUCCESS')) {
+                     currentBuild.result = 'FAILURE'
+                     error 'Build failed!'
+                 }
+             }
+
          }
          post {
              success {
                  echo 'Static Code analysis completed successfully'
+             }
+             failure {
+                echo 'Static Code analysis failed'
+             }
+             unstable {
+                echo 'Static Code build is unstable'
              }
         }
       }
@@ -37,6 +68,9 @@ pipeline{
        post {
            success {
                echo 'Packaging as jar was done successfully'
+           }
+           failure {
+               echo 'Packaging failed'
            }
          }
       }

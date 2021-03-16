@@ -13,7 +13,7 @@ buildNumber.properties
 .mvn/wrapper/maven-wrapper.jar
 
 ### Java template
-# Compiled class file
+# Compiled class filehttps://github.com/arunstiwari/jenkinsfile-test.git
 *.class
 
 # Log file

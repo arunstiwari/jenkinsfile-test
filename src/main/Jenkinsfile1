@@ -1,0 +1,19 @@
+node {
+    stage('Mock build') {
+        def systemType = sh(returnStdout: true, script: 'uname')
+        if (systemType == 'Debian') {
+            sh './build.sh --release'
+            int status = sh(returnStatus: true, script: './test.sh')
+            if (status > 0) {
+                currentBuild.result = 'UNSTABLE'
+            } else {
+                def result = sh(returnStdout: true, script: './processTestResults.sh --platform debian')
+                echo "result: ${result}"
+                if (!result.endsWith('SUCCESS')) {
+                    currentBuild.result = 'FAILURE'
+                    error 'Build failed!'
+                }
+            }
+        }
+    }
+}
