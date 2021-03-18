@@ -5,6 +5,7 @@ import org.junit.Before;
 import org.junit.Test
 import static com.lesfurets.jenkins.unit.MethodCall.callArgsToString
 import static org.junit.Assert.*
+
 public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
 
     @Before
@@ -12,7 +13,7 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
         super.setUp()
         helper.addShMock('./build.sh --release', '', 0)
         helper.addShMock('./processTestResults.sh --platform debian', 'Executed with SUCCESS', 0)
-        binding.setVariable("BRANCH","Dev")
+        binding.setVariable("BRANCH","pev1")
     }
 
     @Test
@@ -23,7 +24,14 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
             }
         })
         def script = runScript("Jenkinsfile")
-        assertEquals("Branch Name is Dev","Dev",binding.getVariable("BRANCH"))
+        assertEquals("Branch Name is Dev","pev1",binding.getVariable("BRANCH"))
+
+        assertTrue(helper.callStack.findAll { call ->
+            call.methodName == "sh"
+        }.any { call ->
+            callArgsToString(call).contains("echo")
+        })
+
         assertJobStatusSuccess()
         printCallStack()
     }
@@ -34,6 +42,7 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
         assertJobStatusSuccess()
         printCallStack()
     }
+
     @Test
     void should_fail_execute_static_analysis_due_to_buildsh_failure() throws Exception {
         helper.addShMock('./build.sh --release', '', 1)

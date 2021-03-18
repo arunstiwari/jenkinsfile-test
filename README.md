@@ -26,7 +26,6 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
 
     @Before
     void setUp() throws Exception {
-//        helper.scriptRoots += 'vars'
         super.setUp()
     }
     @Test
@@ -66,4 +65,127 @@ jenkinsJobs
      └── test
          └── groovy
              └── TestExampleJob.groovy
+```
+
+### 3. Let us write a test to test the following stage in Jenkinsfile
+```text
+stage('Static Code Analysis'){
+  steps {
+     echo 'Executing Static Code Analysis'
+     int status = sh(returnStatus: true, script: './build.sh --release')
+     if(status > 0) {
+        currentBuild.result = 'UNSTABLE'
+     }else {
+        def result = sh(returnStdout: true, script: './processTestResults.sh --platform debian')
+         echo "result: ${result}"
+         if (!result.endsWith('SUCCESS')) {
+             currentBuild.result = 'FAILURE'
+             error 'Build failed!'
+         }
+     }
+
+ }
+ post {
+     success {
+         echo 'Static Code analysis completed successfully'
+     }
+     failure {
+        echo 'Static Code analysis failed'
+     }
+     unstable {
+        echo 'Static Code build is unstable'
+     }
+  }
+}
+```
++ Test will be written something like this
+```groovy
+    @Test
+    void should_execute_static_analysis_successfully() throws Exception {
+        def script = runScript("Jenkinsfile")
+        assertJobStatusSuccess()
+        printCallStack()
+    }
+
+    @Test
+    void should_fail_execute_static_analysis_due_to_buildsh_failure() throws Exception {
+        helper.addShMock('./build.sh --release', '', 1)
+        def script = runScript("Jenkinsfile")
+        assertTrue(helper.callStack.findAll { call ->
+            call.methodName == "sh"
+        }.any { call ->
+            callArgsToString(call).contains("mvn clean package")
+        })
+        assertJobStatusUnstable()
+        printCallStack()
+    }
+
+    @Test
+    void should_fail_execute_static_analysis_due_to_processtestresult_failure() throws Exception {
+        helper.addShMock('./processTestResults.sh --platform debian', 'Executed with FAILURE', 0)
+        def script = runScript("Jenkinsfile")
+        assertFalse(helper.callStack.findAll { call ->
+            call.methodName == "sh"
+        }.any { call ->
+            callArgsToString(call).contains("mvn clean package")
+        })
+        assertJobStatusFailure()
+        printCallStack()
+    }
+
+```
+
+### 4. Let us write a test for stage which is defined as follows
+```text
+stage('Packaging'){
+    steps {
+       echo 'Packaging it as a jar'
+       sh '''
+        mvn clean package
+       '''
+   }
+   post {
+       success {
+           echo 'Packaging as jar was done successfully'
+       }
+       failure {
+           echo 'Packaging failed'
+       }
+     }
+  }
+```
+
++ Test will be written like something below
+```groovy
+@Test
+    void should_execute_packaging_without_errors() throws Exception {
+        helper.registerAllowedMethod("sh", [String.class], {cmd->
+            if (cmd.contains("mvn clean package")) {
+                binding.getVariable('currentBuild').result = 'SUCCESS'
+            }
+        })
+
+        def script = runScript("Jenkinsfile")
+
+        assertJobStatusSuccess()
+        printCallStack()
+    }
+
+    @Test
+    void should_fail_packaging_with_error() throws Exception {
+        helper.registerAllowedMethod("sh", [String.class], {cmd->
+            if (cmd.contains("mvn clean package")) {
+                binding.getVariable('currentBuild').result = 'FAILURE'
+            }
+        })
+
+        def script = runScript("Jenkinsfile")
+        assertTrue(helper.callStack.findAll { call ->
+            call.methodName == "sh"
+        }.any { call ->
+            callArgsToString(call).contains("mvn clean package")
+        })
+        assertJobStatusFailure()
+        printCallStack()
+    }
 ```

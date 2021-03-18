@@ -1,7 +1,7 @@
 pipeline{
     agent none
     parameters{
-            string(name: 'IS_FILE', defaultValue: 'v1045')
+            abc(name: 'IS_FILE', defaultValue: 'v1045')
             }
     stages {
        stage('Checkout'){
