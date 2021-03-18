@@ -1,8 +1,8 @@
 pipeline{
     agent none
     parameters{
-            abc(name: 'IS_FILE', defaultValue: 'v1045')
-            }
+            string(name: 'IS_FILE', defaultValue: 'v1045')
+        }
     stages {
        stage('Checkout'){
            steps {
@@ -74,7 +74,24 @@ pipeline{
            }
          }
       }
-
+    stage('Shell Execution'){
+        steps {
+           echo 'Executing shell commands'
+           sh '''
+            mvn clean package
+            cp abc.txt cde.txt
+            mv abed.csv xyz.csv
+           '''
+       }
+       post {
+           success {
+               echo 'Shell Command executed successfully'
+           }
+           failure {
+               echo 'Shell command execution failed'
+           }
+         }
+      }
     }
     post {
         always {

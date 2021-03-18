@@ -100,5 +100,23 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
         assertJobStatusFailure()
         printCallStack()
     }
+
+    @Test
+    void should_shell_execution_pass() throws Exception {
+        helper.registerAllowedMethod("sh", [String.class], {cmd->
+            if (cmd.contains("cp abc.txt cde.txt")) {
+                binding.getVariable('currentBuild').result = 'FAILURE'
+            }
+        })
+
+        def script = runScript("Jenkinsfile")
+        assertTrue(helper.callStack.findAll { call ->
+            call.methodName == "sh"
+        }.any { call ->
+            callArgsToString(call).contains("mv abed.csv xyz.csv")
+        })
+        assertJobStatusFailure()
+        printCallStack()
+    }
 }
 
