@@ -11,6 +11,8 @@ class TestJenkinsfileCP extends DeclarativePipelineTest{
     @Before
     void setUp() throws Exception {
         super.setUp()
+        def map = [CONTRACT_MODELER_BRANCH: "v23456"]
+        binding.setVariable('params',map)
         helper.registerAllowedMethod("fileOperations", [ArrayList.class], {cmd->
             binding.getVariable('currentBuild').result = 'SUCCESS'
         })
@@ -55,7 +57,6 @@ class TestJenkinsfileCP extends DeclarativePipelineTest{
 
     @Test
     void should_execute_successfully() throws  Exception {
-
         runScript('Jenkinsfile-CP')
         assertJobStatusSuccess()
         printCallStack()

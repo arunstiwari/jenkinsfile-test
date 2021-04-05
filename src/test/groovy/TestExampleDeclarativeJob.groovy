@@ -11,25 +11,43 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
     @Before
     void setUp() throws Exception {
         super.setUp()
+//        helper.clearCallStack()
         helper.addShMock('./build.sh --release', '', 0)
         helper.addShMock('./processTestResults.sh --platform debian', 'Executed with SUCCESS', 0)
-        binding.setVariable("BRANCH","pev1")
+        binding.setVariable("BRANCH","Dev32")
     }
 
     @Test
     void should_execute_checkout_successfully() throws Exception {
-        helper.registerAllowedMethod("sh", [String.class], {cmd->
-            if (cmd.contains("if([ ${BRANCH} = \"Dev\" -o ${BRANCH} = \"Fast-Track\"])")) {
+        def map = [CONTRACT_MODELER_BRANCH: "v23456"]
+        def closure = {cmd ->
+            println("cmd --- ${cmd}")
+            binding.getVariable('currentBuild').result = 'SUCCESS'
+        }
+
+        Closure<String> closure1 = {
+            cmd -> if (cmd.contains("if([ ${BRANCH} = \"Dev\" -o ${BRANCH} = \"Fast-Track\"])")) {
+                println("cmd --- ${cmd}")
                 binding.getVariable('currentBuild').result = 'SUCCESS'
+            }else {
+                println("cmd3434 --- ${cmd}")
+                return 'echo "Not pulling from branch"'
             }
-        })
+        }
+
+        helper.registerAllowedMethod("sh", [String.class], closure1)
         def script = runScript("Jenkinsfile")
-        assertEquals("Branch Name is Dev","pev1",binding.getVariable("BRANCH"))
+        assertEquals("Branch Name is Dev","Dev32",binding.getVariable("BRANCH"))
 
         assertTrue(helper.callStack.findAll { call ->
             call.methodName == "sh"
         }.any { call ->
-            callArgsToString(call).contains("echo")
+            println("-----begin-----${call}")
+
+//            println(callArgsToString(call))
+//            println("-----end-----")
+            callArgsToString(call).contains("ls1")
+//            println(flag)
         })
 
         assertJobStatusSuccess()
@@ -105,17 +123,23 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
     void should_shell_execution_pass() throws Exception {
         helper.registerAllowedMethod("sh", [String.class], {cmd->
             if (cmd.contains("cp abc.txt cde.txt")) {
+                println( "Inside this block ${cmd}")
                 binding.getVariable('currentBuild').result = 'FAILURE'
+                updateBuildStatus('FAILURE')
+                return 1
+            }else {
+                println("Inside the else block ${cmd}")
             }
         })
 
         def script = runScript("Jenkinsfile")
+
         assertTrue(helper.callStack.findAll { call ->
             call.methodName == "sh"
         }.any { call ->
             callArgsToString(call).contains("mv abed.csv xyz.csv")
         })
-        assertJobStatusFailure()
+        assertJobStatusSuccess()
         printCallStack()
     }
 }

@@ -15,6 +15,7 @@ pipeline{
     stages {
       stage('Initial Setup'){
         steps {
+             echo "Contract Modeler Branch ${params.CONTRACT_MODELER_BRANCH}"
              dir("${env.WORKSPACE}"){
                fileOperations([folderCreateOperation(
                  "./ContractModeler/${params.CONTRACT_MODELER_BRANCH}"

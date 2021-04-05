@@ -6,12 +6,13 @@ pipeline{
     stages {
        stage('Checkout'){
            steps {
+              echo "Branch : ${BRANCH}"
                withCredentials([usernamePassword(credentialsId: "WEB_USER", usernameVariable: "bitbucket_user", passwordVariable: "bitbucket_paas")]){
                 sh '''
                     fBranchName = Fast-Track
                     if([ ${BRANCH} = "Dev" -o ${BRANCH} = "Fast-Track"])
                         then
-                            echo "Branch Name ${BRANCH}"
+                           ls "Branch Name ${BRANCH}"
                     else
                         echo "Not pulling from branch"
                     fi
@@ -34,6 +35,7 @@ pipeline{
           steps {
              echo 'Executing Static Code Analysis'
              int status = sh(returnStatus: true, script: './build.sh --release')
+
              if(status > 0) {
                 currentBuild.result = 'UNSTABLE'
              }else {
@@ -77,11 +79,10 @@ pipeline{
     stage('Shell Execution'){
         steps {
            echo 'Executing shell commands'
-           sh '''
-            mvn clean package
-            cp abc.txt cde.txt
-            mv abed.csv xyz.csv
-           '''
+           sh 'mvn clean package'
+           sh 'cp abc.txt cde.txt'
+           sh 'mv abed.csv xyz.csv'
+
        }
        post {
            success {
