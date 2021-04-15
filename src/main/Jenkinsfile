@@ -79,9 +79,11 @@ pipeline{
     stage('Shell Execution'){
         steps {
            echo 'Executing shell commands'
-           sh 'mvn clean package'
-           sh 'cp abc.txt cde.txt'
-           sh 'mv abed.csv xyz.csv'
+           sh '''
+           mvn clean install
+           cp abc.txt cde.txt
+           mv abed.csv xyz.csv
+           '''
 
        }
        post {

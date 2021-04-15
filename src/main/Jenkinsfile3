@@ -1,0 +1,24 @@
+pipeline {
+ agent {
+    docker {
+        label 'RETAIL'
+        image "alpine-xyz"
+        registryUrl "https://abc.xyz.com"
+        registryCredentialsId "nexusid"
+        args '-v /app/retjnkns/.m2:/app/retjnkns/.m2:rw,z'
+    }
+ }
+
+ options {
+    timeout(time: 1, unit: "HOURS")
+ }
+
+ stages {
+    stage("Checkout Git project"){
+        steps {
+            echo "Checkout of code"
+        }
+    }
+
+ }
+}

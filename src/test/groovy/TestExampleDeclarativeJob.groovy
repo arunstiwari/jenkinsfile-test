@@ -46,7 +46,7 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
 
 //            println(callArgsToString(call))
 //            println("-----end-----")
-            callArgsToString(call).contains("ls1")
+            callArgsToString(call).contains("ls")
 //            println(flag)
         })
 
@@ -126,7 +126,7 @@ public class TestExampleDeclarativeJob extends DeclarativePipelineTest {
                 println( "Inside this block ${cmd}")
                 binding.getVariable('currentBuild').result = 'FAILURE'
                 updateBuildStatus('FAILURE')
-                return 1
+                return 0
             }else {
                 println("Inside the else block ${cmd}")
             }

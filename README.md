@@ -345,3 +345,32 @@ binding.setVariable("BRANCH","Dev32")
     }
 }
 
+p5659
+Arun@659
+
+// Test setUp
+helper.registerAllowedMethod("tool", [Map.class], { m ->
+switch (m.type) {
+case "gradle" :
+return "/opt/${m.name.toLowerCase()}"
+case "maven" :
+return m.name=="Maven 3.3" ? "/opt/apache-maven-3.3.9" : "/opt/${m.name.toLowerCase()}"
+default:
+return "${m.name}"
+}
+})
+
+// Test case
+// Simple check that CallStack contains a string al least once
+assertCallStack().contains("/opt/apache-maven-3.3.9")
+
+// This one verifies exactly how many times maven is called
+assertThat(helper.callStack.stream()
+.filter { c -> c.methodName ==~ /sh/  }
+.map(MethodCall.&callArgsToString)
+.findAll { s -> s =~ /opt/apache-maven-3.3.9})
+.hasSize(3) //e.g. build, test, publish
+
+
+
+https://gitter.im/JenkinsPipelineUnit/Lobby?at=5ddd3a4705eec2433d8565b5

@@ -1,0 +1,82 @@
+pipeline {
+ agent {
+    docker {
+        label 'RETAIL'
+        image "alpine-xyz"
+        registryUrl "https://abc.xyz.com"
+        registryCredentialsId "nexusid"
+        args '-v /app/retjnkns/.m2:/app/retjnkns/.m2:rw,z'
+    }
+ }
+
+ options {
+    timeout(time: 1, unit: "HOURS")
+ }
+
+ stages {
+    stage("Checkout Git project"){
+        steps {
+            sh '''
+                rm -rf codebase
+                git clone -b ${BRANCH} --single-branch ${GIT_CODEBASE_URL} codebase
+                ls -lart codebase
+            '''
+        }
+    }
+    stage("Run unit test"){
+        when {
+            expression {params.Run_Unit_Test == 'Y' }
+        }
+        steps {
+            sh "mvn -s settings.xml -f codebase/${APPLICATION_POM_LOCATION} clean test"
+        }
+    }
+    stage("Run Sonar, Push Stats and Validation"){
+        when {
+           expression { params.Run_Sonar_and_push_stats == 'Y' }
+        }
+        steps {
+            sh "mvn -s settings.xml -f codebase/${APPLICATION_POM_LOCATION} clean test cobertura:cobertura -Dcobertura.report.format=xml -Dsonar.scm.disabled=true sonar:sonar"
+        }
+        post {
+            success {
+              sh '''
+                echo "Executing multiple steps"
+                mvn do
+                cp do xb
+              '''
+            }
+            failure {
+              echo "Sonar check failed, please look for the reason above"
+            }
+        }
+    }
+    stage("Run OWASP dependency Check analysis") {
+        when {
+            expression {params.RUN_OWASP_DEPENDENCY_CHECK == 'Y' }
+        }
+        steps {
+            sh "mvn -B -s settings.xml -f codebase/${APPLICATION_POM_LOCATION} clean install"
+            // archiveArtifacts artifacts: "codebase/target/dependency-check-report.xml"
+        }
+    }
+    stage("Publish artifacts"){
+        steps {
+           //archive the build artifacts
+           archiveArtifacts artifacts: "codebase/target/*.${ARTIFACT_CHECKING}"
+           //sh "find ./ -name ".html"
+        }
+    }
+    stage("Push to nexus"){
+        when {
+            expression { params.Build_Release_Candidate == 'Yes' }
+        }
+        steps {
+          sh '''
+            ARTIFACT_NAME=${ls codebase/target/*.${ARTIFACT_PACKAGING} | tail -n 1 )
+            mvn deploy:deploy-file -s settings.xml fdfdhh
+          '''
+        }
+    }
+ }
+}
